@@ -1,0 +1,9 @@
+---
+- name: Setup NGINX with SSL certificates
+  import_tasks: nginx.yaml
+
+- name: Services to be setup only on the controller host
+  import_tasks: metrics.yaml
+
+- name: Services to be setup only on the controller host
+  import_tasks: controller.yaml

@@ -1,0 +1,72 @@
+---
+# You should really read this: https://fedoraproject.org/wiki/Firewalld
+# You can check with: for zones in for zones in $(firewall-cmd --get-active-zones|grep -v interfaces); do firewall-cmd --zone $zones --list-all; done
+- name: Enable Node Exporter at the Linux firewall (only from the internal network clients).
+  firewalld:
+    zone: public
+    port: '{{ node_exporter_port }}/tcp'
+    permanent: yes
+    immediate: yes
+    state: enabled
+  notify:
+    - Reload firewall
+  tags: node_exporter_firewall
+
+- name: Ensure group "prometheus" exists
+  group:
+    name: prometheus
+    state: present
+    system: true
+  tags: prometheus_group
+
+- name: Prometheus system user. Will run Scrapper and node_exporter
+  user:
+    name: prometheus
+    comment: Prometheus daemons
+    system: true
+    group: prometheus
+    append: true
+    shell: /usr/sbin/nologin
+    create_home: false
+  tags: prometheus_user
+
+- name: Get Prometheus node_exporter
+  get_url:
+    url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
+    dest: /opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
+  tags: get_node_exporter
+
+- name:  Install Prometheus node_exporter
+  unarchive:
+    src: /opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
+    dest: /opt/
+    remote_src: true
+    validate_certs: false
+  tags: install_node_exporter
+
+- name: Deploy log rotate config for node_exporter
+  copy:
+    src: logrotate_prometheus-node-exporter
+    dest: /etc/logrotate.d/prometheus-node-exporter
+  tags: logrotate_node_exporter
+
+- name: Deploy configuration for node_exporter
+  copy:
+    src: prometheus-node-exporter
+    dest: /etc/sysconfig/node_exporter
+  tags: config_prometheus_node_exporter
+
+- name: Deploy systemd unit for node_exporter default settings
+  template:
+    src: prometheus-node-exporter.service
+    dest: /etc/systemd/system/prometheus-node-exporter.service
+  tags: systemd_prometheus_node_exporter
+
+- name: Restart node_exporter
+  systemd:
+    state: restarted
+    enabled: true
+    daemon_reload: true
+    name: prometheus-node-exporter
+  tags: activate_node_exporter
+

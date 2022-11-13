@@ -1,0 +1,80 @@
+---
+# You should really read this: https://fedoraproject.org/wiki/Firewalld
+# Open the Prometheus scrapper port, so we can check stats from the Internet. In production, you may want to protect this through a VPN.
+# You can check with: for zones in for zones in $(firewall-cmd --get-active-zones|grep -v interfaces); do firewall-cmd --zone $zones --list-all; done
+- name: Enable Prometheus at the Linux firewall, all clients
+  firewalld:
+    zone: public
+    port: '{{ prometheus_port }}/tcp'
+    permanent: yes
+    immediate: yes
+    state: enabled
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  notify:
+    - Reload firewall
+  tags: prometheus_firewall
+
+- name: Get Prometheus scrapper
+  get_url:
+    url: https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz
+    dest: /opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  tags: get_prometheus
+
+- name: Install Prometheus scrapper
+  unarchive:
+    src: /opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz
+    dest: /opt/
+    remote_src: true
+    validate_certs: false
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  tags: install_prometheus
+
+- name: Create required prometheus directories (I)
+  file:
+    path: /etc/prometheus/
+    state: directory
+    mode: '0755'
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  tags: etc_prometheus
+
+- name: Create required prometheus directories (II)
+  file:
+    path: /var/lib/prometheus
+    state: directory
+    mode: '0755'
+    owner: prometheus
+    group: prometheus
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  tags: var_prometheus
+
+- name: Deploy configuration for prometheus
+  template:
+    src: prometheus.yaml
+    dest: /etc/prometheus/prometheus.yaml
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  tags: config_prometheus
+
+- name: Deploy systemd unit for prometheus-node-exporter
+  template:
+    src: prometheus.service
+    dest: /etc/systemd/system/prometheus.service
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  tags: systemd_prometheus
+
+- name: Restart prometheus
+  systemd:
+    state: restarted
+    daemon_reload: true
+    enabled: true
+    name: prometheus
+  run_once: true
+  delegate_to: '{{ controller_host }}'
+  tags: activate_prometheus

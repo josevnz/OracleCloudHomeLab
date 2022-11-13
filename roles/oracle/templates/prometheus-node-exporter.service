@@ -1,0 +1,17 @@
+# {{ template_run_date }}
+[Unit]
+Description=Node Exporter
+Documentation=https://github.com/prometheus/node_exporter
+Wants=multi-user.target
+After=multi-user.target
+
+[Service]
+User=prometheus
+Group=prometheus
+EnvironmentFile=/etc/sysconfig/node_exporter
+ExecStart=/opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}/node_exporter $OPTIONS
+SyslogIdentifier=prometheus
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

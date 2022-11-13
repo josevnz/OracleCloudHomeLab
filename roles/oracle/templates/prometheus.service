@@ -1,0 +1,26 @@
+# {{ template_run_date }}
+[Unit]
+Description=Prometheus
+Documentation=https://prometheus.io/docs/introduction/overview/
+Wants=multi-user.target
+After=multi-user.target
+
+[Service]
+Type=simple
+Environment="GOMAXPROCS=1"
+User=prometheus
+Group=prometheus
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}/prometheus \
+  --config.file=/etc/prometheus/prometheus.yaml \
+  --storage.tsdb.path=/var/lib/prometheus \
+  --web.console.templates=/opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}/consoles \
+  --web.console.libraries=/opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}/console_libraries \
+  --web.listen-address=0.0.0.0:{{ prometheus_port }} \
+  --web.external-url=http://{{ controller_host }}:{{ prometheus_port }}
+
+SyslogIdentifier=prometheus
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+---
+# Control all the sites
+- import_playbook: oracle.yaml

@@ -1,0 +1,8 @@
+---
+- hosts: oracle
+  serial: 2
+  remote_user: opc
+  become: true
+  become_user: root
+  roles:
+  - oracle

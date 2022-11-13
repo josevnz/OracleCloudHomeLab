@@ -1,0 +1,11 @@
+---
+# Common variables for Oracle Cloud environments
+controller_host: fido.yourcompany.com
+ssl_maintainer_email: youremail@yourcompany.com
+architecture: arm64
+prometheus_version: 2.38.0
+prometheus_port: 9090
+prometheus_node_exporter_nodes: "['user-server1:{{ node_exporter_port }}', 'user-server2:{{ node_exporter_port }}' ]"
+node_exporter_version: 1.4.0
+node_exporter_port: 9100
+internal_network: 10.0.0.0/24

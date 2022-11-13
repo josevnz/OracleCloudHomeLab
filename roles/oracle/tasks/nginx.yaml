@@ -1,0 +1,68 @@
+---
+- name: Enable HTTP at the Linux firewall
+  firewalld:
+    zone: public
+    service: http
+    permanent: true
+    state: enabled
+    immediate: yes
+  notify:
+    - Reload firewall
+  tags: firewalld_https
+
+- name: Enable HTTPS at the Linux firewall
+  firewalld:
+    zone: public
+    service: https
+    permanent: true
+    state: enabled
+    immediate: yes
+  notify:
+    - Reload firewall
+  tags: firewalld_https
+
+- name: Ensure nginx is at the latest version
+  dnf:
+    name: nginx >= 1.14.1
+    state: present
+    update_cache: true
+  tags: install_nginx
+
+- name: Copy requirements file
+  ansible.builtin.copy:
+    src: requirements_certboot.txt
+    dest: /opt/requirements_certboot.txt
+  tags: certbot_requirements
+
+- name: Setup Certbot
+  pip:
+    requirements: /opt/requirements_certboot.txt
+    virtualenv: /opt/certbot/
+    virtualenv_site_packages: true
+    virtualenv_command: /usr/bin/python3 -m venv
+    # state: forcereinstall
+  tags: certbot_env
+
+- name: Get SSL certificate
+  command:
+    argv:
+      - /opt/certbot/bin/certbot
+      - --nginx
+      - --agree-tos
+      - -m {{ ssl_maintainer_email }}
+      - -d {{ inventory_hostname }}
+      - --non-interactive
+  notify:
+    - Restart Nginx
+  tags: certbot_install
+
+- name: Creates a cron file under /etc/cron.d/certbot_renew
+  ansible.builtin.cron:
+    name: certboot renew
+    weekday: "5"
+    minute: "0"
+    hour: "0"
+    user: root
+    job: "/opt/certbot/bin/certbot renew --quiet --pre-hook 'systemctl stop nginx' --post-hook 'systemctl start nginx'"
+    cron_file: certbot_renew
+  tags: certbot_renew

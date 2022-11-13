@@ -1,0 +1,21 @@
+all:
+  children:
+    oracle:
+      hosts:
+        fido.yourcompany.com:
+          vars:
+            ip: 129.213.145.8
+            virtual_instance: user-server1
+        solomon.yourcompany.com:
+          vars:
+            ip: XXX.YYY.ZZZ.AAA
+            virtual_instance: user-server2
+      vars:
+        remote_user: opc
+        description: |-
+          Oracle Cloud virtual machines (free tier).
+          Remote access: ssh opc@XXX.YYY.ZZZ.AAA.
+          Requires public SSH key on https://cloud.oracle.com/
+    controllers:
+      hosts:
+        fido.yourcompany.com:

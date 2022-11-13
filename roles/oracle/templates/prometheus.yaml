@@ -1,0 +1,14 @@
+---
+global:
+    scrape_interval: 30s
+    evaluation_interval: 30s
+    scrape_timeout: 10s
+    external_labels:
+        monitor: 'oracle-cloud-metrics'
+
+scrape_configs:
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: {{ prometheus_node_exporter_nodes }}
+    tls_config:
+      insecure_skip_verify: true

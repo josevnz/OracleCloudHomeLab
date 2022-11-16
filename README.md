@@ -267,7 +267,7 @@ _Keep in mind that this will not execute any dependencies that you may have defi
 
 ### Is it ansible-playbook --check good enough?
 
-Some errors are more subtle and will not get caught with ansible-playbook --check. To get a more complete check on your playbooks before minor issues become a headache you can use ansible-lint, let's get it installed:
+Some errors are more subtle and will not get caught with ansible-playbook --check. To get a more complete check on your playbooks before minor issues become a headache you can use [ansible-lint](https://ansible-lint.readthedocs.io/philosophy/), let's get it installed:
 
 ```shell
 python3 -m venv ~/virtualenv/ansiblelint && . ~/virtualenv/ansiblelint/bin/activate
@@ -301,7 +301,7 @@ ansible [core 2.14.0]
   libyaml = True
 ```
 
-ansible-lint only installed [core], and firewalld is part of [ansible.posix collection](https://docs.ansible.com/ansible/latest/collections/ansible/posix/firewalld_module.html), we will use [Ansible Galaxy](https://docs.ansible.com/ansible/latest/cli/ansible-galaxy.html) to install it:
+Ansible-lint installed its own ansible [core], and firewalld is part of [ansible.posix collection](https://docs.ansible.com/ansible/latest/collections/ansible/posix/firewalld_module.html), we will use [Ansible Galaxy](https://docs.ansible.com/ansible/latest/cli/ansible-galaxy.html) to install it:
 
 ```shell
 (ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ which ansible-galaxy

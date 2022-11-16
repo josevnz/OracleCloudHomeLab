@@ -236,11 +236,13 @@ You can have something like this:
 # And a handler that will restart NGINX after it gets modified (handlers/main.yaml)
 ---
 - name: Restart Nginx
-  service:
+  ansible.builtin.service:
     name: nginx
     state: restarted
 - name: Reload firewall
-  command: firewall-cmd --reload
+  ansible.builtin.systemd:
+    name: firewalld.service
+    state: reloaded
 ````
 
 ## Running the playbooks
@@ -422,7 +424,7 @@ Passed with min profile: 0 failure(s), 1 warning(s) on 8 files.
 
 Much better now, the warning is not treated as an error.
 
-### Best practices
+### Jinja best practices
 
 * If you plan to use variables and Jinja templates, make sure you quote them (example: "dest: /opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz")
 

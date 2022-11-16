@@ -4,9 +4,9 @@
 - name: Enable Node Exporter at the Linux firewall (only from the internal network clients).
   firewalld:
     zone: public
-    port: '{{ node_exporter_port }}/tcp'
-    permanent: yes
-    immediate: yes
+    port: "{{ node_exporter_port }}/tcp"
+    permanent: true
+    immediate: true
     state: enabled
   notify:
     - Reload firewall
@@ -32,11 +32,12 @@
 
 - name: Get Prometheus node_exporter
   get_url:
-    url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
+    url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ architecture
+      }}.tar.gz
     dest: /opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
   tags: get_node_exporter
 
-- name:  Install Prometheus node_exporter
+- name: Install Prometheus node_exporter
   unarchive:
     src: /opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
     dest: /opt/
@@ -69,4 +70,3 @@
     daemon_reload: true
     name: prometheus-node-exporter
   tags: activate_node_exporter
-

@@ -5,7 +5,7 @@
     service: http
     permanent: true
     state: enabled
-    immediate: yes
+    immediate: true
   notify:
     - Reload firewall
   tags: firewalld_https
@@ -16,7 +16,7 @@
     service: https
     permanent: true
     state: enabled
-    immediate: yes
+    immediate: true
   notify:
     - Reload firewall
   tags: firewalld_https
@@ -63,6 +63,6 @@
     minute: "0"
     hour: "0"
     user: root
-    job: "/opt/certbot/bin/certbot renew --quiet --pre-hook 'systemctl stop nginx' --post-hook 'systemctl start nginx'"
+    job: /opt/certbot/bin/certbot renew --quiet --pre-hook 'systemctl stop nginx' --post-hook 'systemctl start nginx'
     cron_file: certbot_renew
   tags: certbot_renew

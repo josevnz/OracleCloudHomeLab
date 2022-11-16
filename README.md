@@ -1,13 +1,19 @@
 # Provisioning a home lab with Oracle cloud and Ansible
 
-I want to show you here how you can do a full infrastructure provisioning of a pair of webservers, with SSL certificates and metrics with Prometheus.
+Imagine for a moment that you have been working hard to setup a website, protected with SSL, and then your hardware fails. This means that unless you have a perfect backup of your machine, you will need to install all the software and configuration files by hand.
+
+What if it's not just one server but many? The amount of time you will need to fix all of them will grow exponentially – and because is a manual process it will be more error-prone.
+
+And then the nightmare scenario: You don't have an up-to-date backup, or you have incomplete backups. Or the worst – there are no backups at all. This last case is more common than you think, especially in home labs where you are tinkering and playing around with stuff by yourself.
+
+In this tutorial, I'll show you how you can do a full infrastructure provisioning of a pair of web servers on a Cloud provider, with SSL certificates and monitoring metrics with Prometheus.
 
 ## What do you need for this setup
 
 * The first thing you need is a cloud provider; [Oracle Cloud](https://cloud.oracle.com) offers a Free Tier version of their cloud services, which allow you to setup virtual machines for free; This is great for a home lab with lots of rich features that you can use to try new tools and techniques.
 * I used [Ansible](https://www.ansible.com/) because its very low requirements (you only need an SSH daemon and public key authentication to get things going), and also because it works equally well regardless of the cloud environment you are trying to provision; On this tutorial we will use the [Open Source version](https://github.com/ansible/ansible) of this tool, it is more than sufficient for our purposes.
 
-#$ What is included in the playbook
+# What is included in the playbook
 
 * How you can maintain [clean inventory sources](https://www.redhat.com/sysadmin/ansible-dynamic-inventories) by using the proper layout in your playbooks.
 * Provisioning of 2 NGINX instances, with the request of their proper free SSL certificates using [Certbot](https://certbot.eff.org/instructions?ws=nginx&os=pip).
@@ -116,12 +122,12 @@ global:
     evaluation_interval: 30s
     scrape_timeout: 10s
     external_labels:
-        monitor: 'oracle-cloud-metrics'
+        monitor: "oracle-cloud-metrics"
 
 scrape_configs:
-  - job_name: 'node-exporter'
+  - job_name: "node-exporter"
     static_configs:
-      - targets: {{ prometheus_node_exporter_nodes }}
+      - targets: "{{ prometheus_node_exporter_nodes }}"
     tls_config:
       insecure_skip_verify: true
 ```
@@ -150,8 +156,8 @@ scrape_configs:
       - /opt/certbot/bin/certbot
       - --nginx
       - --agree-tos
-      - -m {{ ssl_maintainer_email }}
-      - -d {{ inventory_hostname }}
+      - -m "{{ ssl_maintainer_email }}"
+      - -d "{{ inventory_hostname }}"
       - --non-interactive
   notify:
     - Restart Nginx
@@ -258,6 +264,82 @@ Another way to gradually test a complex playbook is by executing a specific task
 _Keep in mind that this will not execute any dependencies that you may have defined on you playbook tough_:
 
 [![asciicast](https://asciinema.org/a/537303.svg)](https://asciinema.org/a/537303)
+
+### Is it ansible-playbook --check good enough?
+
+Some errors are more subtle and will not get caught with ansible-playbook --check. To get a more complete check on your playbooks before minor issues become a headache you can use ansible-lint, let's get it installed:
+
+```shell
+python3 -m venv ~/virtualenv/ansiblelint && . ~/virtualenv/ansiblelint/bin/activate
+pip install --upgrade pip
+pip install --upgrade wheel
+pip install ansible-lint
+```
+
+Now we can check the playbook:
+
+```shell
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml 
+WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
+WARNING  Listing 1 violation(s) that are fatal
+syntax-check[specific]: couldn't resolve module/action 'firewalld'. This often indicates a misspelling, missing collection, or incorrect module path.
+roles/oracle/tasks/nginx.yaml:2:3
+```
+
+Strange, firewalld is available on our Ansible installation. What else was installed by ansible-lint?:
+
+```shell
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible --version
+ansible [core 2.14.0]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/josevnz/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /home/josevnz/virtualenv/ansiblelint/lib64/python3.9/site-packages/ansible
+  ansible collection location = /home/josevnz/.ansible/collections:/usr/share/ansible/collections
+  executable location = /home/josevnz/virtualenv/ansiblelint/bin/ansible
+  python version = 3.9.9 (main, Nov 19 2021, 00:00:00) [GCC 10.3.1 20210422 (Red Hat 10.3.1-1)] (/home/josevnz/virtualenv/ansiblelint/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+```
+
+ansible-lint only installed [core], and firewalld is part of [ansible.posix collection](https://docs.ansible.com/ansible/latest/collections/ansible/posix/firewalld_module.html), we will use [Ansible Galaxy](https://docs.ansible.com/ansible/latest/cli/ansible-galaxy.html) to install it:
+
+```shell
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ which ansible-galaxy
+~/virtualenv/ansiblelint/bin/ansible-galaxy
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-galaxy collection install ansible.posix
+Starting galaxy collection install process
+Process install dependency map
+Starting collection install process
+Downloading https://galaxy.ansible.com/download/ansible-posix-1.4.0.tar.gz to /home/josevnz/.ansible/tmp/ansible-local-18099xpw_8usc/tmp8msc9uf5/ansible-posix-1.4.0-_f17f525
+Installing 'ansible.posix:1.4.0' to '/home/josevnz/.ansible/collections/ansible_collections/ansible/posix'
+ansible.posix:1.4.0 was installed successfully
+```
+
+Running it again:
+
+```shell
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml 
+WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
+WARNING  Listing 50 violation(s) that are fatal
+name[play]: All plays should be named. (warning)
+oracle.yaml:2
+
+fqcn[action-core]: Use FQCN for builtin module actions (service).
+roles/oracle/handlers/main.yaml:2 Use `ansible.builtin.service` or `ansible.legacy.service` instead.
+
+fqcn[action-core]: Use FQCN for builtin module actions (command).
+roles/oracle/handlers/main.yaml:6 Use `ansible.builtin.command` or `ansible.legacy.command` instead.
+```
+
+Some warnings are pedantic ('Use FQCN for builtin module actions (command)') and others require attention (Commands should not change things if nothing needs doing.).
+
+Ansible-lint found many smells on the playbook, there is one option to re-write the files and correct some of these errors automatically:
+
+[![asciicast](https://asciinema.org/a/538053.svg)](https://asciinema.org/a/538053)
+
+
+### Best practices
+
 
 ### Constraint where the playbook runs with --limit and --tags
 

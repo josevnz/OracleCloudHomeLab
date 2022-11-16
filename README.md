@@ -362,7 +362,7 @@ Note all the errors are easy to solve. Some commands decide on their own if they
   tags: certbot_install
 ```
 
-In our case certboot prints a message if the certificate is not yet due for renewal, if that output is missing then we trigger the Nginx restart.
+In our case certboot prints a message if the certificate is not yet due for renewal, if that output is missing then we trigger the Nginx restart (see [defining changed](https://docs.ansible.com/ansible/latest/user_guide/playbooks_error_handling.html#defining-changed)):
 
 ```yaml
 - name: Get SSL certificate

@@ -362,7 +362,7 @@ Note all the errors are easy to solve. Some commands decide on their own if they
   tags: certbot_install
 ```
 
-In our case certboot is nice enough to provide an option called '–post-hook' that will get called if the certificate is renewed without issues. The new task fragment will include the following:
+In our case certboot prints a message if the certificate is not yet due for renewal, if that output is missing then we trigger the Nginx restart.
 
 ```yaml
 - name: Get SSL certificate
@@ -371,91 +371,56 @@ In our case certboot is nice enough to provide an option called '–post-hook' t
       - /opt/certbot/bin/certbot
       - --nginx
       - --agree-tos
-      - -m "{{ ssl_maintainer_email }}"
-      - -d "{{ inventory_hostname }}"
-      - –post-hook 'exit 100'
+      - -m {{ ssl_maintainer_email }}
+      - -d {{ inventory_hostname }}
       - --non-interactive
-    register: certbot_output # Registers the certbot output.
-    changed_when: certbot_output.rc == 100 # Custom code to signal Ansible for the change
+  register: certbot_output # Registers the certbot output.
+  changed_when: 
+    - '"Certificate not yet due for renewal" not in certbot_output.stdout'
   notify:
     - Restart Nginx
   tags: certbot_install
 ```
 
-Yet when I run ansible-lint it still complains about the command not following the rules:
+I do want to use shell as I need to expand the variable for certbot, but ansible-lint is still not happy:
 
 ```shell
 (ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml
 WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
-WARNING  Listing 2 violation(s) that are fatal
+WARNING  Listing 1 violation(s) that are fatal
 command-instead-of-shell: Use shell only when shell functionality is required.
-roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
-
-no-changed-when: Commands should not change things if nothing needs doing.
 roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
 
 You can skip specific rules or tags by adding them to your configuration file:
 # .config/ansible-lint.yml
 warn_list:  # or 'skip_list' to silence them completely
   - command-instead-of-shell  # Use shell only when shell functionality is required.
-  - no-changed-when  # Commands should not change things if nothing needs doing.
 
-                      Rule Violation Summary                       
- count tag                      profile rule associated tags       
-     1 command-instead-of-shell basic   command-shell, idiom       
-     1 no-changed-when          shared  command-shell, idempotency 
+                   Rule Violation Summary                    
+ count tag                      profile rule associated tags 
+     1 command-instead-of-shell basic   command-shell, idiom 
 
-Failed after min profile: 2 failure(s), 0 warning(s) on 8 files.
+Failed after min profile: 1 failure(s), 0 warning(s) on 8 files.
 ```
 
-I do want to use shell as I need to expand the variable for certbot, and I fixed the command notification issue but ansible-lint is still not happy:
+Time to treat this error as a warning as I know they are not issues, by creating a `.config/ansible-lint.yml`:
 
 ```shell
 (ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml
 WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
-WARNING  Listing 2 violation(s) that are fatal
-command-instead-of-shell: Use shell only when shell functionality is required.
-roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
-
-no-changed-when: Commands should not change things if nothing needs doing.
-roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
-
-You can skip specific rules or tags by adding them to your configuration file:
-# .config/ansible-lint.yml
-warn_list:  # or 'skip_list' to silence them completely
-  - command-instead-of-shell  # Use shell only when shell functionality is required.
-  - no-changed-when  # Commands should not change things if nothing needs doing.
-
-                      Rule Violation Summary                       
- count tag                      profile rule associated tags       
-     1 command-instead-of-shell basic   command-shell, idiom       
-     1 no-changed-when          shared  command-shell, idempotency 
-
-Failed after min profile: 2 failure(s), 0 warning(s) on 8 files.
-```
-
-Time for me to silence these warnings as I know they are not issues, by creating a `.config/ansible-lint.yml`:
-
-```shell
-(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml
-WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
-WARNING  Listing 2 violation(s) that are fatal
+WARNING  Listing 1 violation(s) that are fatal
 command-instead-of-shell: Use shell only when shell functionality is required. (warning)
 roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
 
-no-changed-when: Commands should not change things if nothing needs doing. (warning)
-roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
 
+                        Rule Violation Summary                         
+ count tag                      profile rule associated tags           
+     1 command-instead-of-shell basic   command-shell, idiom (warning) 
 
-                           Rule Violation Summary                            
- count tag                      profile rule associated tags                 
-     1 command-instead-of-shell basic   command-shell, idiom (warning)       
-     1 no-changed-when          shared  command-shell, idempotency (warning) 
-
-Passed with min profile: 0 failure(s), 2 warning(s) on 8 files.
+Passed with min profile: 0 failure(s), 1 warning(s) on 8 files.
 ```
 
-Much better now.
+Much better now, the warning is not treated as an error.
 
 ### Best practices
 
@@ -467,12 +432,12 @@ Say that you are only interested in running your playbook on a certain host; you
 --limit' flag:
 
 ```shell
-ansible-playbook --inventory inventory --limit fido.yourcompany.com --tags certbot_renew site.yaml
+ansible-playbook --inventory inventory --limit fido.stupidzombie.com --tags certbot_renew site.yaml
 ```
 
 [![asciicast](https://asciinema.org/a/537304.svg)](https://asciinema.org/a/537304)
 
-Here we did run only a task tagged certbot_renew on the host fido.yourcompany.com.
+Here we did run only a task tagged certbot_renew on the host fido.stupidzombie.com.
 
 ### Dealing with a real issue
 

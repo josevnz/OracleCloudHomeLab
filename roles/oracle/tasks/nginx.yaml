@@ -50,12 +50,12 @@
       - /opt/certbot/bin/certbot
       - --nginx
       - --agree-tos
-      - -m "{{ ssl_maintainer_email }}"
-      - -d "{{ inventory_hostname }}"
-      - –post-hook 'exit 100'
+      - -m {{ ssl_maintainer_email }}
+      - -d {{ inventory_hostname }}
       - --non-interactive
-    register: certbot_output # Registers the certbot output.
-    changed_when: certbot_output.rc == 100 # Custom code to signal Ansible for the change
+  register: certbot_output # Registers the certbot output.
+  changed_when:
+    - '"Certificate not yet due for renewal" not in certbot_output.stdout'
   notify:
     - Restart Nginx
   tags: certbot_install

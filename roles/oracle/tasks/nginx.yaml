@@ -1,6 +1,6 @@
 ---
 - name: Enable HTTP at the Linux firewall
-  firewalld:
+  ansible.posix.firewalld:
     zone: public
     service: http
     permanent: true
@@ -11,7 +11,7 @@
   tags: firewalld_https
 
 - name: Enable HTTPS at the Linux firewall
-  firewalld:
+  ansible.posix.firewalld:
     zone: public
     service: https
     permanent: true
@@ -22,7 +22,7 @@
   tags: firewalld_https
 
 - name: Ensure nginx is at the latest version
-  dnf:
+  ansible.builtin.dnf:
     name: nginx >= 1.14.1
     state: present
     update_cache: true
@@ -32,10 +32,11 @@
   ansible.builtin.copy:
     src: requirements_certboot.txt
     dest: /opt/requirements_certboot.txt
+    mode: u=rw,g=r,o=-rwx
   tags: certbot_requirements
 
 - name: Setup Certbot
-  pip:
+  ansible.builtin.pip:
     requirements: /opt/requirements_certboot.txt
     virtualenv: /opt/certbot/
     virtualenv_site_packages: true
@@ -44,14 +45,17 @@
   tags: certbot_env
 
 - name: Get SSL certificate
-  command:
+  ansible.builtin.shell:
     argv:
       - /opt/certbot/bin/certbot
       - --nginx
       - --agree-tos
-      - -m {{ ssl_maintainer_email }}
-      - -d {{ inventory_hostname }}
+      - -m "{{ ssl_maintainer_email }}"
+      - -d "{{ inventory_hostname }}"
+      - –post-hook 'exit 100'
       - --non-interactive
+    register: certbot_output # Registers the certbot output.
+    changed_when: certbot_output.rc == 100 # Custom code to signal Ansible for the change
   notify:
     - Restart Nginx
   tags: certbot_install

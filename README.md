@@ -265,7 +265,7 @@ _Keep in mind that this will not execute any dependencies that you may have defi
 
 [![asciicast](https://asciinema.org/a/537303.svg)](https://asciinema.org/a/537303)
 
-### Is it ansible-playbook --check good enough?
+### Using Ansible-lint when ansible-playbook --check is not good enough
 
 Some errors are more subtle and will not get caught with ansible-playbook --check. To get a more complete check on your playbooks before minor issues become a headache you can use [ansible-lint](https://ansible-lint.readthedocs.io/philosophy/), let's get it installed:
 
@@ -337,17 +337,129 @@ Ansible-lint found many smells on the playbook, there is one option to re-write 
 
 [![asciicast](https://asciinema.org/a/538053.svg)](https://asciinema.org/a/538053)
 
-To me this more useful  I'll show you next the warning, the issue and the fix on a table that you can use as a guideline to correct this issues on your own playbooks:
+There are some guidelines you can [follow to correct these issues](https://ansible-lint.readthedocs.io/profiles/#production), below are some that can be directly applied to the warnings we got earlier:
 
-| Issue name                                                        | Suggestion                                                         | Code with problem                                | Corrected code                                                   |
-|-------------------------------------------------------------------|--------------------------------------------------------------------|--------------------------------------------------|------------------------------------------------------------------|
-| fqcn[action-core]: Use FQCN for builtin module actions (command). | Use `ansible.builtin.service` or `ansible.legacy.service` instead. | - name: Restart Nginx<br>service:<br>name: nginx | - name: Restart Nginx<br>ansible.builtin.service:<br>name: nginx |
+| Issue name                                                             | Suggestion                                                         | Code with problem                                                                                                                              | Corrected code                                                                                                                                             |
+|------------------------------------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| fqcn[action-core]: Use FQCN for builtin module actions (command).      | Use `ansible.builtin.service` or `ansible.legacy.service` instead. | - name: Restart Nginx<br>service:<br>name: nginx                                                                                               | - name: Restart Nginx<br>ansible.builtin.service:<br>name: nginx                                                                                           |
+| yaml[line-length]: Line too long (163 > 160 characters)                | You can use variables to shorten the line                          | url: "https://github.com/prometheus/node_exporter/releases/download/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz" | url: "{{ github_prom }}/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz"                            |
+| risky-file-permissions: File permissions unset or incorrect. (warning) | Be explicit about the permissions                                  | Code missing a mode: tag                                                                                                                       | - name: Copy requirements file<br>ansible.builtin.copy:<br>src: requirements_certboot.txt<br>dest: /opt/requirements_certboot.txt<br>mode: u=rw,g=r,o=-rwx |
+
+Note all the errors are easy to solve. Some commands decide on their own if they should make changes or not but have a hard time communicating back to Ansible:
+
+```yaml
+- name: Get SSL certificate
+  ansible.builtin.shell:
+    argv:
+      - /opt/certbot/bin/certbot
+      - --nginx
+      - --agree-tos
+      - -m "{{ ssl_maintainer_email }}"
+      - -d "{{ inventory_hostname }}"
+      - --non-interactive
+  notify:
+    - Restart Nginx
+  tags: certbot_install
+```
+
+In our case certboot is nice enough to provide an option called '–post-hook' that will get called if the certificate is renewed without issues. The new task fragment will include the following:
+
+```yaml
+- name: Get SSL certificate
+  ansible.builtin.shell:
+    argv:
+      - /opt/certbot/bin/certbot
+      - --nginx
+      - --agree-tos
+      - -m "{{ ssl_maintainer_email }}"
+      - -d "{{ inventory_hostname }}"
+      - –post-hook 'exit 100'
+      - --non-interactive
+    register: certbot_output # Registers the certbot output.
+    changed_when: certbot_output.rc == 100 # Custom code to signal Ansible for the change
+  notify:
+    - Restart Nginx
+  tags: certbot_install
+```
+
+Yet when I run ansible-lint it still complains about the command not following the rules:
+
+```shell
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml
+WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
+WARNING  Listing 2 violation(s) that are fatal
+command-instead-of-shell: Use shell only when shell functionality is required.
+roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
+
+no-changed-when: Commands should not change things if nothing needs doing.
+roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
+
+You can skip specific rules or tags by adding them to your configuration file:
+# .config/ansible-lint.yml
+warn_list:  # or 'skip_list' to silence them completely
+  - command-instead-of-shell  # Use shell only when shell functionality is required.
+  - no-changed-when  # Commands should not change things if nothing needs doing.
+
+                      Rule Violation Summary                       
+ count tag                      profile rule associated tags       
+     1 command-instead-of-shell basic   command-shell, idiom       
+     1 no-changed-when          shared  command-shell, idempotency 
+
+Failed after min profile: 2 failure(s), 0 warning(s) on 8 files.
+```
+
+I do want to use shell as I need to expand the variable for certbot, and I fixed the command notification issue but ansible-lint is still not happy:
+
+```shell
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml
+WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
+WARNING  Listing 2 violation(s) that are fatal
+command-instead-of-shell: Use shell only when shell functionality is required.
+roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
+
+no-changed-when: Commands should not change things if nothing needs doing.
+roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
+
+You can skip specific rules or tags by adding them to your configuration file:
+# .config/ansible-lint.yml
+warn_list:  # or 'skip_list' to silence them completely
+  - command-instead-of-shell  # Use shell only when shell functionality is required.
+  - no-changed-when  # Commands should not change things if nothing needs doing.
+
+                      Rule Violation Summary                       
+ count tag                      profile rule associated tags       
+     1 command-instead-of-shell basic   command-shell, idiom       
+     1 no-changed-when          shared  command-shell, idempotency 
+
+Failed after min profile: 2 failure(s), 0 warning(s) on 8 files.
+```
+
+Time for me to silence these warnings as I know they are not issues, by creating a `.config/ansible-lint.yml`:
+
+```shell
+(ansiblelint) [josevnz@dmaf5 OracleCloudHomeLab]$ ansible-lint site.yaml
+WARNING  Overriding detected file kind 'yaml' with 'playbook' for given positional argument: site.yaml
+WARNING  Listing 2 violation(s) that are fatal
+command-instead-of-shell: Use shell only when shell functionality is required. (warning)
+roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
+
+no-changed-when: Commands should not change things if nothing needs doing. (warning)
+roles/oracle/tasks/nginx.yaml:47 Task/Handler: Get SSL certificate
 
 
+                           Rule Violation Summary                            
+ count tag                      profile rule associated tags                 
+     1 command-instead-of-shell basic   command-shell, idiom (warning)       
+     1 no-changed-when          shared  command-shell, idempotency (warning) 
 
+Passed with min profile: 0 failure(s), 2 warning(s) on 8 files.
+```
+
+Much better now.
 
 ### Best practices
 
+* If you plan to use variables and Jinja templates, make sure you quote them (example: "dest: /opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz")
 
 ### Constraint where the playbook runs with --limit and --tags
 

@@ -3,7 +3,7 @@
 # Open the Prometheus scrapper port, so we can check stats from the Internet. In production, you may want to protect this through a VPN.
 # You can check with: for zones in for zones in $(firewall-cmd --get-active-zones|grep -v interfaces); do firewall-cmd --zone $zones --list-all; done
 - name: Enable Prometheus at the Linux firewall, all clients
-  firewalld:
+  ansible.posix.firewalld:
     zone: public
     port: "{{ prometheus_port }}/tcp"
     permanent: true
@@ -16,16 +16,19 @@
   tags: prometheus_firewall
 
 - name: Get Prometheus scrapper
-  get_url:
-    url: https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz
-    dest: /opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz
+  vars:
+    github_prom: "https://github.com/prometheus/prometheus/releases/download"
+  ansible.builtin.get_url:
+    url: "{{ github_prom }}/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz"
+    dest: "/opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz"
+    mode: u=rw,g=r,o=-rwx
   run_once: true
   delegate_to: "{{ controller_host }}"
   tags: get_prometheus
 
 - name: Install Prometheus scrapper
-  unarchive:
-    src: /opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz
+  ansible.builtin.unarchive:
+    src: "/opt/prometheus-{{ prometheus_version }}.linux-{{ architecture }}.tar.gz"
     dest: /opt/
     remote_src: true
     validate_certs: false
@@ -34,7 +37,7 @@
   tags: install_prometheus
 
 - name: Create required prometheus directories (I)
-  file:
+  ansible.builtin.file:
     path: /etc/prometheus/
     state: directory
     mode: "0755"
@@ -43,7 +46,7 @@
   tags: etc_prometheus
 
 - name: Create required prometheus directories (II)
-  file:
+  ansible.builtin.file:
     path: /var/lib/prometheus
     state: directory
     mode: "0755"
@@ -54,23 +57,25 @@
   tags: var_prometheus
 
 - name: Deploy configuration for prometheus
-  template:
+  ansible.builtin.template:
     src: prometheus.yaml
     dest: /etc/prometheus/prometheus.yaml
+    mode: u=rw,g=r,o=-rwx
   run_once: true
   delegate_to: "{{ controller_host }}"
   tags: config_prometheus
 
 - name: Deploy systemd unit for prometheus-node-exporter
-  template:
+  ansible.builtin.template:
     src: prometheus.service
     dest: /etc/systemd/system/prometheus.service
+    mode: u=rw,g=r,o=-rwx
   run_once: true
   delegate_to: "{{ controller_host }}"
   tags: systemd_prometheus
 
 - name: Restart prometheus
-  systemd:
+  ansible.builtin.systemd:
     state: restarted
     daemon_reload: true
     enabled: true

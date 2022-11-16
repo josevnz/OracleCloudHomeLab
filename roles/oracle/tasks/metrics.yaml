@@ -2,7 +2,7 @@
 # You should really read this: https://fedoraproject.org/wiki/Firewalld
 # You can check with: for zones in for zones in $(firewall-cmd --get-active-zones|grep -v interfaces); do firewall-cmd --zone $zones --list-all; done
 - name: Enable Node Exporter at the Linux firewall (only from the internal network clients).
-  firewalld:
+  ansible.posix.firewalld:
     zone: public
     port: "{{ node_exporter_port }}/tcp"
     permanent: true
@@ -13,14 +13,14 @@
   tags: node_exporter_firewall
 
 - name: Ensure group "prometheus" exists
-  group:
+  ansible.builtin.group:
     name: prometheus
     state: present
     system: true
   tags: prometheus_group
 
 - name: Prometheus system user. Will run Scrapper and node_exporter
-  user:
+  ansible.builtin.user:
     name: prometheus
     comment: Prometheus daemons
     system: true
@@ -31,40 +31,45 @@
   tags: prometheus_user
 
 - name: Get Prometheus node_exporter
-  get_url:
-    url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ architecture
-      }}.tar.gz
-    dest: /opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
+  vars:
+    github_prom: "https://github.com/prometheus/node_exporter/releases/download"
+  ansible.builtin.get_url:
+    url: "{{ github_prom }}/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz"
+    dest: "/opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz"
+    mode: u=rw,g=r,o=-rwx
   tags: get_node_exporter
 
 - name: Install Prometheus node_exporter
-  unarchive:
-    src: /opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz
+  ansible.builtin.unarchive:
+    src: "/opt/node_exporter-{{ node_exporter_version }}.linux-{{ architecture }}.tar.gz"
     dest: /opt/
     remote_src: true
     validate_certs: false
   tags: install_node_exporter
 
 - name: Deploy log rotate config for node_exporter
-  copy:
+  ansible.builtin.copy:
     src: logrotate_prometheus-node-exporter
     dest: /etc/logrotate.d/prometheus-node-exporter
+    mode: u=rw,g=r,o=-rwx
   tags: logrotate_node_exporter
 
 - name: Deploy configuration for node_exporter
-  copy:
+  ansible.builtin.copy:
     src: prometheus-node-exporter
     dest: /etc/sysconfig/node_exporter
+    mode: u=rw,g=r,o=-rwx
   tags: config_prometheus_node_exporter
 
 - name: Deploy systemd unit for node_exporter default settings
-  template:
+  ansible.builtin.template:
     src: prometheus-node-exporter.service
     dest: /etc/systemd/system/prometheus-node-exporter.service
+    mode: u=rw,g=r,o=-rwx
   tags: systemd_prometheus_node_exporter
 
 - name: Restart node_exporter
-  systemd:
+  ansible.builtin.systemd:
     state: restarted
     enabled: true
     daemon_reload: true

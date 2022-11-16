@@ -1,5 +1,6 @@
 ---
-- hosts: oracle
+- name: Oracle Cloud details
+  hosts: oracle
   serial: 2
   remote_user: opc
   become: true

@@ -337,6 +337,14 @@ Ansible-lint found many smells on the playbook, there is one option to re-write 
 
 [![asciicast](https://asciinema.org/a/538053.svg)](https://asciinema.org/a/538053)
 
+To me this more useful  I'll show you next the warning, the issue and the fix on a table that you can use as a guideline to correct this issues on your own playbooks:
+
+| Issue name                                                        | Suggestion                                                         | Code with problem                                | Corrected code                                                   |
+|-------------------------------------------------------------------|--------------------------------------------------------------------|--------------------------------------------------|------------------------------------------------------------------|
+| fqcn[action-core]: Use FQCN for builtin module actions (command). | Use `ansible.builtin.service` or `ansible.legacy.service` instead. | - name: Restart Nginx<br>service:<br>name: nginx | - name: Restart Nginx<br>ansible.builtin.service:<br>name: nginx |
+
+
+
 
 ### Best practices
 

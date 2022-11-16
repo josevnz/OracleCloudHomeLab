@@ -1,3 +1,4 @@
 ---
 # Control all the sites
-- import_playbook: oracle.yaml
+- name: All sites playbook
+  import_playbook: oracle.yaml
